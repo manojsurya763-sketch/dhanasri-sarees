@@ -1,0 +1,28 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Web: dev server",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/apps/web" },
+      "isBackground": true,
+      "presentation": { "panel": "dedicated", "group": "dev" },
+      "problemMatcher": []
+    },
+    {
+      "label": "API: dev server",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/apps/api" },
+      "isBackground": true,
+      "presentation": { "panel": "dedicated", "group": "dev" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run all (web + api)",
+      "dependsOn": ["Web: dev server", "API: dev server"],
+      "problemMatcher": []
+    }
+  ]
+}

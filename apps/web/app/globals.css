@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fbeedd;
+  --foreground: #2a1015;
+
+  --color-maroon-50: #fbeef0;
+  --color-maroon-400: #a5384a;
+  --color-maroon-500: #7a1f2b;
+  --color-maroon-600: #63161f;
+  --color-maroon-900: #3d0d13;
+
+  --color-cream-50: #fffdfa;
+  --color-cream-100: #fbeedd;
+  --color-cream-200: #f3e0c7;
+
+  --color-gold-400: #d8b578;
+  --color-gold-500: #c9a15a;
+  --color-gold-600: #a9813f;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-maroon-50: var(--color-maroon-50);
+  --color-maroon-400: var(--color-maroon-400);
+  --color-maroon-500: var(--color-maroon-500);
+  --color-maroon-600: var(--color-maroon-600);
+  --color-maroon-900: var(--color-maroon-900);
+
+  --color-cream-50: var(--color-cream-50);
+  --color-cream-100: var(--color-cream-100);
+  --color-cream-200: var(--color-cream-200);
+
+  --color-gold-400: var(--color-gold-400);
+  --color-gold-500: var(--color-gold-500);
+  --color-gold-600: var(--color-gold-600);
+
+  --font-serif-display: var(--font-playfair);
+  --font-sans: var(--font-inter);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.postage-stamp {
+  position: relative;
+  border: 2px dashed var(--color-maroon-500);
+  border-radius: 0.75rem;
+}
+.postage-stamp::before,
+.postage-stamp::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  background: var(--background);
+  border: 2px dashed var(--color-maroon-500);
+  transform: translateY(-50%);
+}
+.postage-stamp::before {
+  left: -11px;
+  border-right: none;
+  clip-path: inset(0 0 0 50%);
+}
+.postage-stamp::after {
+  right: -11px;
+  border-left: none;
+  clip-path: inset(0 50% 0 0);
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
