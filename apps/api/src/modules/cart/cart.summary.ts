@@ -4,10 +4,11 @@ const FREE_SHIPPING_THRESHOLD = 5000;
 const SHIPPING_FEE = 99;
 
 type CartWithItems = Cart & { items: (CartItem & { product: Product })[] };
+type LineItem = { product: Product; qty: number };
 
-export function summarizeCart(cart: CartWithItems, coupon: Coupon | null) {
-  const totalMrp = cart.items.reduce((sum, i) => sum + Number(i.product.mrp) * i.qty, 0);
-  const totalPrice = cart.items.reduce((sum, i) => sum + Number(i.product.price) * i.qty, 0);
+export function summarizeItems(items: LineItem[], coupon: Coupon | null) {
+  const totalMrp = items.reduce((sum, i) => sum + Number(i.product.mrp) * i.qty, 0);
+  const totalPrice = items.reduce((sum, i) => sum + Number(i.product.price) * i.qty, 0);
 
   let couponDiscount = 0;
   if (coupon && totalPrice >= Number(coupon.minPurchase)) {
@@ -26,4 +27,11 @@ export function summarizeCart(cart: CartWithItems, coupon: Coupon | null) {
     shipping,
     totalAmount,
   };
+}
+
+export function summarizeCart(cart: CartWithItems, coupon: Coupon | null) {
+  return summarizeItems(
+    cart.items.map((i) => ({ product: i.product, qty: i.qty })),
+    coupon
+  );
 }

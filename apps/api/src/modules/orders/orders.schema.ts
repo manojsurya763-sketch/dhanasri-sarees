@@ -1,6 +1,13 @@
 import { z } from "zod";
 
-// `phone` identifies the buyer until real JWT auth (Prompt 12) supplies req.userId instead.
 export const createOrderSchema = z.object({
-  phone: z.string().min(6),
+  items: z
+    .array(
+      z.object({
+        productId: z.string().uuid(),
+        qty: z.number().int().min(1).max(20),
+      })
+    )
+    .min(1),
+  couponCode: z.string().trim().min(1).optional(),
 });

@@ -1,54 +1,72 @@
+import crypto from "node:crypto";
 import type { Request, Response } from "express";
 import { prisma } from "@/config/db";
+import { getRazorpay } from "@/config/razorpay";
 import { param } from "@/lib/params";
 import { ApiError } from "@/middleware/error-handler";
 import { createOrderSchema } from "@/modules/orders/orders.schema";
-import { getOrCreateCart } from "@/modules/cart/cart.repo";
 import { findCouponByCode } from "@/modules/coupons/coupons.repo";
-import { summarizeCart } from "@/modules/cart/cart.summary";
+import { summarizeItems } from "@/modules/cart/cart.summary";
 
 export async function createOrder(req: Request, res: Response) {
-  const { phone } = createOrderSchema.parse(req.body);
-  const cart = await getOrCreateCart(req.guestId);
-  if (cart.items.length === 0) throw new ApiError(400, "Cart is empty");
+  const { items, couponCode } = createOrderSchema.parse(req.body);
+  const userId = req.userId!;
 
-  const coupon = cart.couponCode ? await findCouponByCode(cart.couponCode) : null;
-  const summary = summarizeCart(cart, coupon);
-
-  const user = await prisma.user.upsert({
-    where: { phone },
-    update: {},
-    create: { phone },
+  const products = await prisma.product.findMany({
+    where: { id: { in: items.map((i) => i.productId) }, isActive: true },
   });
 
-  const order = await prisma.$transaction(async (tx) => {
-    const created = await tx.order.create({
-      data: {
-        userId: user.id,
-        totalMrp: summary.totalMrp,
-        discount: summary.discountOnMrp + summary.couponDiscount,
-        shipping: summary.shipping,
-        totalAmount: summary.totalAmount,
-        status: "pending",
-        couponCode: cart.couponCode,
-        items: {
-          create: cart.items.map((item) => ({
-            productId: item.productId,
-            qty: item.qty,
-            priceAtPurchase: item.product.price,
-          })),
-        },
+  const lineItems = items.map((item) => {
+    const product = products.find((p) => p.id === item.productId);
+    if (!product) throw new ApiError(404, `Product ${item.productId} not found`);
+    if (product.stock < item.qty) throw new ApiError(400, `"${product.title}" only has ${product.stock} left in stock`);
+    return { product, qty: item.qty };
+  });
+
+  const coupon = couponCode ? await findCouponByCode(couponCode) : null;
+  if (couponCode && !coupon) throw new ApiError(400, "Invalid coupon code");
+
+  const summary = summarizeItems(lineItems, coupon);
+  if (coupon && summary.totalPrice < Number(coupon.minPurchase)) {
+    throw new ApiError(400, `Minimum purchase of ${coupon.minPurchase} required for coupon ${coupon.code}`);
+  }
+
+  const orderId = crypto.randomUUID();
+  const rzpOrder = await getRazorpay().orders.create({
+    amount: Math.round(summary.totalAmount * 100),
+    currency: "INR",
+    receipt: orderId,
+  });
+
+  const order = await prisma.order.create({
+    data: {
+      id: orderId,
+      userId,
+      totalMrp: summary.totalMrp,
+      discount: summary.discountOnMrp + summary.couponDiscount,
+      shipping: summary.shipping,
+      totalAmount: summary.totalAmount,
+      status: "created",
+      couponCode: coupon?.code,
+      razorpayOrderId: rzpOrder.id,
+      items: {
+        create: lineItems.map((item) => ({
+          productId: item.product.id,
+          qty: item.qty,
+          priceAtPurchase: item.product.price,
+        })),
       },
-      include: { items: true },
-    });
-
-    await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
-    await tx.cart.update({ where: { id: cart.id }, data: { couponCode: null } });
-
-    return created;
+    },
+    include: { items: true },
   });
 
-  res.status(201).json(order);
+  res.status(201).json({
+    orderId: order.id,
+    razorpayOrderId: rzpOrder.id,
+    amount: summary.totalAmount,
+    currency: "INR",
+    keyId: process.env.RAZORPAY_KEY_ID,
+  });
 }
 
 export async function getOrder(req: Request, res: Response) {

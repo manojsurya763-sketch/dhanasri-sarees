@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCartStore } from "@/store/cartStore";
 import { CartLineItem } from "@/components/cart/CartLineItem";
 import { EmptyCart } from "@/components/cart/EmptyCart";
@@ -44,9 +45,11 @@ export default function CartPage() {
         <div className="space-y-4">
           <PromoCodeBox appliedCode={couponCode} onApply={applyCoupon} onClear={clearCoupon} />
           <OrderSummary totalMrp={totalMrp} totalPrice={totalPrice} couponDiscount={couponDiscount} />
-          <Button className="hidden w-full lg:flex" size="lg">
-            Proceed To Pay
-          </Button>
+          <Link href="/checkout" className="hidden lg:block">
+            <Button className="w-full" size="lg">
+              Proceed To Pay
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -55,7 +58,9 @@ export default function CartPage() {
           <p className="text-xs text-maroon-900/50">Total</p>
           <p className="text-lg font-semibold text-maroon-900">{formatCurrency(total)}</p>
         </div>
-        <Button size="lg">Proceed To Pay</Button>
+        <Link href="/checkout">
+          <Button size="lg">Proceed To Pay</Button>
+        </Link>
       </div>
     </div>
   );

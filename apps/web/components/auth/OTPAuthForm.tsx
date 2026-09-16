@@ -32,10 +32,15 @@ export function OTPAuthForm({ onSuccess }: { onSuccess?: () => void }) {
     }
     setError(null);
     setLoading(true);
-    await requestOtp(`${countryCode}${phone}`);
-    setLoading(false);
-    setStep(2);
-    setResendIn(RESEND_SECONDS);
+    try {
+      await requestOtp(`${countryCode}${phone}`);
+      setStep(2);
+      setResendIn(RESEND_SECONDS);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send OTP, please try again");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleVerify() {
@@ -45,14 +50,15 @@ export function OTPAuthForm({ onSuccess }: { onSuccess?: () => void }) {
     }
     setError(null);
     setLoading(true);
-    const res = await verifyOtp(`${countryCode}${phone}`, otp);
-    setLoading(false);
-    if (!res.verified) {
-      setError("Incorrect OTP, please try again");
-      return;
+    try {
+      const res = await verifyOtp(`${countryCode}${phone}`, otp);
+      login(res.token, res.user);
+      onSuccess?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Incorrect OTP, please try again");
+    } finally {
+      setLoading(false);
     }
-    login(`${countryCode}${phone}`);
-    onSuccess?.();
   }
 
   if (step === 1) {
