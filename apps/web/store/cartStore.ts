@@ -8,6 +8,10 @@ export interface CartItem {
   price: number;
   mrp: number;
   qty: number;
+  blouseType?: string;
+  blouseSize?: string;
+  padding?: string;
+  finishing?: string;
 }
 
 interface CartState {
@@ -32,7 +36,7 @@ export const useCartStore = create<CartState>()(
           if (existing) {
             return {
               items: state.items.map((i) =>
-                i.productId === item.productId ? { ...i, qty: i.qty + qty } : i
+                i.productId === item.productId ? { ...i, ...item, qty: i.qty + qty } : i
               ),
             };
           }

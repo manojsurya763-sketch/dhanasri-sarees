@@ -7,17 +7,119 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Dedupe key for Razorpay webhook deliveries — Razorpay retries webhooks,
+// so the same event can arrive more than once; `eventId`'s unique
+// constraint makes a duplicate delivery a no-op instead of double-processing.
+model WebhookEvent {
+  id          String   @id @default(uuid())
+  provider    String
+  eventId     String   @unique @map("event_id")
+  type        String
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@map("webhook_events")
+}
+
+enum OrderStatus {
+  created
+  paid
+  failed
+  shipped
+  delivered
+  cancelled
+  refunded
+}
+
+enum StaffRole {
+  super_admin
+  admin
+  employee
+}
+
+// Staff identities are disjoint from `User` (customers) — admins/employees
+// never have a Postgres `User` row. Role + active state live here, not in a
+// Firebase custom claim, so a deactivation is enforced on the very next API
+// call rather than waiting for the browser to refresh its ID token.
+model Staff {
+  id          String    @id @default(uuid())
+  firebaseUid String    @unique @map("firebase_uid")
+  email       String    @unique
+  name        String?
+  role        StaffRole
+  isActive    Boolean   @default(true) @map("is_active")
+  createdBy   String?   @map("created_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  processedReturns   Return[]              @relation("ReturnProcessedBy")
+  approvedReturns    Return[]              @relation("ReturnApprovedBy")
+  reviewResponses    Review[]
+  attendance         AttendanceEntry[]
+  orderStatusChanges OrderStatusHistory[]
+
+  @@map("staff")
+}
+
+enum ReturnStatus {
+  requested
+  processing
+  approved
+  rejected
+}
+
+// A return logged by staff on a customer's behalf (no self-service request
+// flow exists yet — see the returns module). `orderItemId` null means the
+// whole order is being returned; otherwise it's a single line item.
+model Return {
+  id           String       @id @default(uuid())
+  orderId      String       @map("order_id")
+  order        Order        @relation(fields: [orderId], references: [id])
+  orderItemId  String?      @map("order_item_id")
+  orderItem    OrderItem?   @relation(fields: [orderItemId], references: [id])
+  userId       String       @map("user_id")
+  user         User         @relation(fields: [userId], references: [id])
+  qty          Int          @default(1)
+  reason       String
+  status       ReturnStatus @default(requested)
+  refundAmount Decimal?     @map("refund_amount") @db.Decimal(10, 2)
+
+  processedByStaffId String? @map("processed_by_staff_id")
+  processedByStaff    Staff? @relation("ReturnProcessedBy", fields: [processedByStaffId], references: [id])
+  approvedByStaffId   String? @map("approved_by_staff_id")
+  approvedByStaff      Staff? @relation("ReturnApprovedBy", fields: [approvedByStaffId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([orderId])
+  @@index([status])
+  @@map("returns")
+}
+
+// Singleton row (fixed id "main") holding site-wide branding the admin can
+// change without a code deploy — currently just the logo.
+model SiteSettings {
+  id        String   @id @default("main")
+  logoUrl   String?  @map("logo_url")
+  navLinks  Json?    @map("nav_links")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("site_settings")
+}
+
 model User {
   id        String   @id @default(uuid())
   phone     String   @unique
   name      String?
   email     String?
+  isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
 
   cart      Cart?
   wishlist  WishlistItem[]
   orders    Order[]
   reviews   Review[]
+  returns   Return[]
 
   @@map("users")
 }
@@ -27,32 +129,42 @@ model Category {
   name        String
   slug        String    @unique
   occasionTag String?   @map("occasion_tag")
+  description String?
   products    Product[]
 
   @@map("categories")
 }
 
 model Product {
-  id            String   @id @default(uuid())
-  title         String
-  sku           String   @unique
-  slug          String   @unique
-  categoryId    String?  @map("category_id")
-  category      Category? @relation(fields: [categoryId], references: [id])
-  occasionTag   String?  @map("occasion_tag")
-  mrp           Decimal  @db.Decimal(10, 2)
-  price         Decimal  @db.Decimal(10, 2)
-  discountPct   Int      @default(0) @map("discount_pct")
-  description   String?
-  images        String[]
-  rating        Float    @default(0)
-  reviewCount   Int      @default(0) @map("review_count")
-  stock         Int      @default(0)
-  isFeatured    Boolean  @default(false) @map("is_featured")
-  isNewArrival  Boolean  @default(false) @map("is_new_arrival")
-  isActive      Boolean  @default(true) @map("is_active")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id                    String   @id @default(uuid())
+  title                 String
+  sku                   String   @unique
+  slug                  String   @unique
+  categoryId            String?  @map("category_id")
+  category              Category? @relation(fields: [categoryId], references: [id])
+  occasionTag           String?  @map("occasion_tag")
+  mrp                   Decimal  @db.Decimal(10, 2)
+  price                 Decimal  @db.Decimal(10, 2)
+  discountPct           Int      @default(0) @map("discount_pct")
+  description           String?
+  images                String[]
+  rating                Float    @default(0)
+  reviewCount           Int      @default(0) @map("review_count")
+  stock                 Int      @default(0)
+  isFeatured            Boolean  @default(false) @map("is_featured")
+  isNewArrival          Boolean  @default(false) @map("is_new_arrival")
+  isActive              Boolean  @default(true) @map("is_active")
+  fabric                String?
+  colour                String?
+  origin                String?
+  zari                  String?
+  loom                  String?
+  work                  String?
+  length                String?
+  blouseTypes           String[] @default([]) @map("blouse_types")
+  internationalShipping Boolean  @default(true) @map("international_shipping")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
   cartItems     CartItem[]
   wishlistItems WishlistItem[]
@@ -63,6 +175,8 @@ model Product {
   @@index([createdAt])
   @@index([isFeatured])
   @@index([isNewArrival])
+  @@index([fabric])
+  @@index([colour])
   @@map("products")
 }
 
@@ -109,14 +223,35 @@ model Order {
   discount          Decimal     @db.Decimal(10, 2)
   shipping          Decimal     @db.Decimal(10, 2)
   totalAmount       Decimal     @map("total_amount") @db.Decimal(10, 2)
-  status            String      @default("created")
+  status            OrderStatus @default(created)
   couponCode        String?     @map("coupon_code")
   razorpayOrderId   String?     @unique @map("razorpay_order_id")
   razorpayPaymentId String?     @map("razorpay_payment_id")
+  trackingNumber    String?     @map("tracking_number")
+  carrier           String?
   createdAt         DateTime    @default(now()) @map("created_at")
   items             OrderItem[]
+  returns           Return[]
+  history           OrderStatusHistory[]
 
   @@map("orders")
+}
+
+// changedByStaffId is null for system-initiated changes (e.g. the stale-order
+// reconciliation job auto-failing an unpaid order — no staff member acted).
+model OrderStatusHistory {
+  id               String      @id @default(uuid())
+  orderId          String      @map("order_id")
+  order            Order       @relation(fields: [orderId], references: [id])
+  fromStatus       OrderStatus @map("from_status")
+  toStatus         OrderStatus @map("to_status")
+  changedByStaffId String?     @map("changed_by_staff_id")
+  changedByStaff   Staff?      @relation(fields: [changedByStaffId], references: [id])
+  note             String?
+  createdAt        DateTime    @default(now()) @map("created_at")
+
+  @@index([orderId])
+  @@map("order_status_history")
 }
 
 model OtpCode {
@@ -140,16 +275,22 @@ model OrderItem {
   product         Product @relation(fields: [productId], references: [id])
   qty             Int
   priceAtPurchase Decimal @map("price_at_purchase") @db.Decimal(10, 2)
+  returns         Return[]
 
   @@map("order_items")
 }
 
 model Coupon {
-  id           String   @id @default(uuid())
-  code         String   @unique
-  pctOff       Int      @map("pct_off")
-  maxOff       Decimal  @map("max_off") @db.Decimal(10, 2)
-  minPurchase  Decimal  @map("min_purchase") @db.Decimal(10, 2)
+  id          String   @id @default(uuid())
+  code        String   @unique
+  pctOff      Int      @map("pct_off")
+  maxOff      Decimal  @map("max_off") @db.Decimal(10, 2)
+  minPurchase Decimal  @map("min_purchase") @db.Decimal(10, 2)
+  isActive    Boolean  @default(true) @map("is_active")
+  usageLimit  Int?     @map("usage_limit")
+  timesUsed   Int      @default(0) @map("times_used")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("coupons")
 }
@@ -162,8 +303,29 @@ model Review {
   user      User     @relation(fields: [userId], references: [id])
   rating    Int
   comment   String?
+  isHidden  Boolean  @default(false) @map("is_hidden")
+
+  staffResponse       String?   @map("staff_response")
+  staffResponseAt     DateTime? @map("staff_response_at")
+  respondedByStaffId  String?   @map("responded_by_staff_id")
+  respondedByStaff    Staff?    @relation(fields: [respondedByStaffId], references: [id])
+
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([productId])
   @@map("reviews")
+}
+
+// Self-service clock-in/out for Employee and Super Admin — no attendance
+// review/report screen exists (each role only ever sees their own entries).
+model AttendanceEntry {
+  id         String    @id @default(uuid())
+  staffId    String    @map("staff_id")
+  staff      Staff     @relation(fields: [staffId], references: [id])
+  clockInAt  DateTime  @map("clock_in_at")
+  clockOutAt DateTime? @map("clock_out_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([staffId, clockInAt])
+  @@map("attendance_entries")
 }

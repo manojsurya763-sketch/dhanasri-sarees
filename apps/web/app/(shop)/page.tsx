@@ -10,18 +10,20 @@ import { Testimonials } from "@/components/home/Testimonials";
 import { CTABanner } from "@/components/home/CTABanner";
 import { ProductGridSkeleton } from "@/components/product/ProductGridSkeleton";
 
+export const dynamic = "force-dynamic";
+
 export default function Home() {
   return (
     <>
       <Hero />
       <TrustStrip />
+      <Suspense fallback={<ProductGridSkeleton />}>
+        <FeaturedSection />
+      </Suspense>
       <OccasionGrid />
       <TrendCarousel />
       <Suspense fallback={<ProductGridSkeleton />}>
         <NewArrivalsSection />
-      </Suspense>
-      <Suspense fallback={<ProductGridSkeleton />}>
-        <FeaturedSection />
       </Suspense>
       <BrandStoryBand />
       <Testimonials />

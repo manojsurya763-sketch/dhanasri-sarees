@@ -9,6 +9,8 @@ const INFO_TILES = [
   { icon: Clock, label: "Office Hours", value: "Mon–Sat, 10 AM – 7 PM" },
 ];
 
+export const dynamic = "force-dynamic";
+
 export default function ContactPage() {
   return (
     <>

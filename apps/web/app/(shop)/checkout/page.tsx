@@ -12,11 +12,14 @@ import { formatCurrency } from "@/lib/formatCurrency";
 import { computeCouponDiscount, findCoupon } from "@/lib/coupons";
 import { createOrder } from "@/lib/orders";
 import { openRazorpayCheckout } from "@/lib/razorpay";
+import { getIdToken } from "@/lib/firebase";
+
+export const dynamic = "force-dynamic";
 
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, couponCode, clearCart } = useCartStore();
-  const { isAuthenticated, token, user } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const openAuthModal = useUiStore((s) => s.openAuthModal);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +46,7 @@ export default function CheckoutPage() {
   const total = payable + shipping;
 
   async function handlePay() {
-    if (!isAuthenticated || !token || !user) {
+    if (!isAuthenticated || !user) {
       openAuthModal();
       return;
     }
@@ -51,6 +54,9 @@ export default function CheckoutPage() {
     setError(null);
     setLoading(true);
     try {
+      const token = await getIdToken();
+      if (!token) throw new Error("Your session expired, please log in again");
+
       const order = await createOrder(
         items.map((i) => ({ productId: i.productId, qty: i.qty })),
         couponCode,

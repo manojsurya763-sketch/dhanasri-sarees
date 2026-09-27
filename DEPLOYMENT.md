@@ -2,7 +2,7 @@
 
 Stack: **Next.js** (`apps/web`) on Vercel, **Express/Prisma** (`apps/api`) on Render, **PostgreSQL** on Neon or Supabase. No local server is required — everything below runs in each provider's dashboard/CLI against your deployed services.
 
-Deploy in this order: **database → API → Razorpay webhook → frontend**. Each step needs the output of the one before it.
+Deploy in this order: **database → API → Razorpay webhook → frontend → admin panel**. Each step needs the output of the one before it.
 
 ---
 
@@ -28,12 +28,10 @@ Deploy in this order: **database → API → Razorpay webhook → frontend**. Ea
    |---|---|
    | `DATABASE_URL` | connection string from step 1 |
    | `PORT` | `4000` (Render sets `PORT` itself — this is only used for local dev, Render's env var takes precedence) |
-   | `CORS_ORIGIN` | your Vercel URL, e.g. `https://dhana-sri-sarees.vercel.app` (update after step 4 deploys) |
-   | `JWT_SECRET` | a long random string — generate with `openssl rand -hex 32` |
-   | `JWT_EXPIRES_IN` | `30d` |
+   | `CORS_ORIGIN` | comma-separated Vercel URLs for both frontends, e.g. `https://dhana-sri-sarees.vercel.app,https://dhana-sri-sarees-admin.vercel.app` (update after steps 4 and 5 deploy) |
    | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | from Razorpay Dashboard → Settings → API Keys |
    | `RAZORPAY_WEBHOOK_SECRET` | set in step 3 below |
-   | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | optional — leave blank to have OTP codes logged to the Render service logs instead of sent by SMS (useful for demoing before you have a Twilio number) |
+   | `FIREBASE_PROJECT_ID` / `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` | Firebase Console → Project settings → Service accounts → Generate new private key. Used to verify customer (Phone OTP) and staff (Email/Password) sessions — required, or every login/auth-checked request will fail |
 
 4. Deploy. Once live, note the service URL, e.g. `https://dhana-sri-sarees-api.onrender.com`.
 5. Seed the catalog once, from your machine, pointed at the production database:
@@ -73,7 +71,36 @@ Deploy in this order: **database → API → Razorpay webhook → frontend**. Ea
 
 ---
 
-## 5. Verify the golden path
+## 5. Admin panel (Vercel)
+
+1. On [Vercel](https://vercel.com): **New Project**, import the same repo again as a second project, and set:
+   - **Root Directory**: `apps/admin`
+   - Framework preset: Next.js (auto-detected)
+2. Add environment variables, for all environments:
+
+   | Key | Value |
+   |---|---|
+   | `NEXT_PUBLIC_API_URL` | same Render API URL as the storefront |
+   | `NEXT_PUBLIC_FIREBASE_*` | same values as `apps/web`'s Firebase config (same project) |
+
+3. Deploy, then go back to Render's `CORS_ORIGIN` and add this Vercel URL to the comma-separated list (step 2), redeploying the API.
+4. In Firebase Console → Authentication → Sign-in method, enable **Email/Password** (separate from the storefront's Phone provider) if not already enabled.
+5. Seed the first Super Admin by running the bootstrap script against
+   **production's** database (staff roles live in Postgres, not in a
+   Firebase claim, so — unlike the old claim-based approach — this must be
+   run once per environment, pointed at that environment's `DATABASE_URL`):
+   ```bash
+   cd apps/api
+   DATABASE_URL=... FIREBASE_PROJECT_ID=... FIREBASE_CLIENT_EMAIL=... FIREBASE_PRIVATE_KEY=... \
+     npm run bootstrap-super-admin -- you@example.com --password 'some-password'
+   ```
+   Every other staff account (Admin/Employee, or additional Super Admins) is
+   then created from the in-app Staff page once this first one can sign in.
+6. Sign in at the deployed admin URL and confirm the product/inventory/order pages load.
+
+---
+
+## 6. Verify the golden path
 
 1. Visit the deployed site → Home page shows seeded products under "New Arrivals".
 2. Add a saree to the cart → Cart page shows correct totals.

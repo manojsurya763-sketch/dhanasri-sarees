@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, type CSSProperties } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ProductCard } from "@/components/product/ProductCard";
@@ -8,12 +8,20 @@ import type { Product } from "@/lib/types";
 
 export function ProductGrid({
   title,
+  titleClassName,
+  titleStyle,
   subcopy,
+  subcopyClassName,
+  subcopyStyle,
   viewAllHref,
   products,
 }: {
   title: string;
+  titleClassName?: string;
+  titleStyle?: CSSProperties;
   subcopy?: string;
+  subcopyClassName?: string;
+  subcopyStyle?: CSSProperties;
   viewAllHref: string;
   products: Product[];
 }) {
@@ -27,10 +35,17 @@ export function ProductGrid({
     <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
       <div className="flex items-end justify-between">
         <div>
-          <h2 className="font-[family-name:var(--font-serif-display)] text-3xl italic text-maroon-500">
+          <h2
+            className={titleClassName ?? "font-[family-name:var(--font-serif-display)] text-3xl italic text-maroon-500"}
+            style={titleStyle}
+          >
             {title}
           </h2>
-          {subcopy && <p className="mt-1 text-sm text-maroon-900/60">{subcopy}</p>}
+          {subcopy && (
+            <p className={subcopyClassName ?? "mt-1 text-sm text-maroon-900/60"} style={subcopyStyle}>
+              {subcopy}
+            </p>
+          )}
         </div>
         <Link href={viewAllHref} className="hidden text-sm font-medium text-maroon-500 hover:underline sm:block">
           View All →

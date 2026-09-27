@@ -1,28 +1,21 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
 interface AuthUser {
-  id: string;
+  uid: string;
   phone: string;
 }
 
 interface AuthState {
   user: AuthUser | null;
-  token: string | null;
   isAuthenticated: boolean;
-  login: (token: string, user: AuthUser) => void;
-  logout: () => void;
+  setUser: (user: AuthUser | null) => void;
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      user: null,
-      token: null,
-      isAuthenticated: false,
-      login: (token, user) => set({ token, user, isAuthenticated: true }),
-      logout: () => set({ token: null, user: null, isAuthenticated: false }),
-    }),
-    { name: "dhana-sri-auth" }
-  )
-);
+// Firebase's own onAuthStateChanged (see AuthListener) is the source of truth
+// and persists sign-in across reloads on its own — this store just mirrors it
+// for synchronous reads in components (e.g. the header icon).
+export const useAuthStore = create<AuthState>()((set) => ({
+  user: null,
+  isAuthenticated: false,
+  setUser: (user) => set({ user, isAuthenticated: !!user }),
+}));

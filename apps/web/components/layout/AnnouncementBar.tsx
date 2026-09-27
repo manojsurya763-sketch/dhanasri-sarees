@@ -17,7 +17,7 @@ export function AnnouncementBar() {
   }, []);
 
   return (
-    <div className="bg-maroon-500 text-cream-50 text-center text-xs sm:text-sm py-2 px-4 tracking-wide">
+    <div className="bg-[#fff1df] text-maroon-900 text-center text-xs sm:text-sm py-2 px-4 tracking-wide">
       {MESSAGES[index]}
     </div>
   );

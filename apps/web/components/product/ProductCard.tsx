@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Eye, GitCompare, Heart } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { formatCurrency } from "@/lib/formatCurrency";
+import { productImage } from "@/lib/image";
 import { useWishlistStore } from "@/store/wishlistStore";
 import type { Product } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -11,10 +13,19 @@ import { cn } from "@/lib/utils";
 export function ProductCard({ product }: { product: Product }) {
   const isWishlisted = useWishlistStore((s) => s.isWishlisted(product.id));
   const toggleWishlist = useWishlistStore((s) => s.toggleItem);
+  const image = productImage(product.images, product.title, 0);
 
   return (
     <div className="group w-full shrink-0 sm:w-auto">
-      <Link href={`/products/${product.slug}`} className="relative block aspect-[3/4] overflow-hidden rounded-xl bg-gradient-to-br from-maroon-400 to-maroon-800">
+      <Link href={`/products/${product.slug}`} className="relative block aspect-[4/5] overflow-hidden rounded-xl bg-maroon-50">
+        <Image
+          src={image}
+          alt={product.title}
+          fill
+          sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+          className="object-cover transition-transform duration-300 group-hover:scale-105"
+        />
+
         {product.discountPct > 0 && (
           <Badge variant="discount" className="absolute left-2 top-2 z-10">
             -{product.discountPct}%
@@ -28,7 +39,7 @@ export function ProductCard({ product }: { product: Product }) {
             toggleWishlist({
               productId: product.id,
               title: product.title,
-              image: "",
+              image,
               price: Number(product.price),
               mrp: Number(product.mrp),
               rating: product.rating,
@@ -38,10 +49,6 @@ export function ProductCard({ product }: { product: Product }) {
         >
           <Heart className={cn("h-4 w-4", isWishlisted && "fill-maroon-500 text-maroon-500")} />
         </button>
-
-        <span className="absolute inset-0 flex items-center justify-center text-sm text-cream-50/60">
-          {product.title.slice(0, 1)}
-        </span>
 
         <div className="absolute inset-x-0 bottom-0 flex justify-center gap-2 bg-gradient-to-t from-black/40 to-transparent py-3 opacity-0 transition-opacity group-hover:opacity-100">
           <span className="rounded-full bg-cream-50/90 p-1.5 text-maroon-900">

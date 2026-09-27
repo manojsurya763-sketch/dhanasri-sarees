@@ -1,25 +1,34 @@
+import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from "firebase/auth";
+import { auth, getIdToken } from "@/lib/firebase";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const RECAPTCHA_CONTAINER_ID = "recaptcha-container";
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error ?? "Something went wrong, please try again");
+let recaptchaVerifier: RecaptchaVerifier | null = null;
+
+function getRecaptchaVerifier() {
+  if (!recaptchaVerifier) {
+    recaptchaVerifier = new RecaptchaVerifier(auth, RECAPTCHA_CONTAINER_ID, { size: "invisible" });
   }
-  return data as T;
+  return recaptchaVerifier;
 }
 
-export function requestOtp(phone: string) {
-  return postJson<{ sent: true }>("/auth/otp/request", { phone });
+export async function requestOtp(phone: string): Promise<ConfirmationResult> {
+  return signInWithPhoneNumber(auth, phone, getRecaptchaVerifier());
 }
 
-export function verifyOtp(phone: string, code: string) {
-  return postJson<{ token: string; user: { id: string; phone: string } }>("/auth/otp/verify", {
-    phone,
-    code,
+// Resolves once the code is verified with Firebase and the resulting session
+// has been synced to our own backend (so a Postgres/Firestore user record exists).
+export async function verifyOtp(confirmation: ConfirmationResult, code: string): Promise<void> {
+  await confirmation.confirm(code);
+
+  const idToken = await getIdToken();
+  const res = await fetch(`${API_URL}/auth/session`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
   });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? "Signed in, but couldn't sync your account — please try again");
+  }
 }

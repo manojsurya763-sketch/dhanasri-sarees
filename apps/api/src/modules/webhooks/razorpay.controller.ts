@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import type { Request, Response } from "express";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/config/db";
+import { restockAndFailOrder } from "@/modules/orders/orders.repo";
 
 function verifySignature(rawBody: Buffer, signature: string | undefined, secret: string): boolean {
   if (!signature) return false;
@@ -13,7 +15,7 @@ function verifySignature(rawBody: Buffer, signature: string | undefined, secret:
 export async function handleRazorpayWebhook(req: Request, res: Response) {
   const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
   if (!secret) {
-    console.error("RAZORPAY_WEBHOOK_SECRET not configured; rejecting webhook");
+    req.log.error("RAZORPAY_WEBHOOK_SECRET not configured; rejecting webhook");
     return res.status(500).json({ error: "Webhook not configured" });
   }
 
@@ -26,37 +28,58 @@ export async function handleRazorpayWebhook(req: Request, res: Response) {
 
   const payload = JSON.parse(rawBody.toString("utf8"));
   const event = payload.event as string;
+  const payment = payload.payload?.payment?.entity;
+
+  // Razorpay retries webhook deliveries — dedupe on (event, payment id) so a
+  // retried delivery is a no-op instead of double-processing (stock is only
+  // ever decremented once, at order creation — see orders.controller.ts).
+  if (payment?.id) {
+    try {
+      await prisma.webhookEvent.create({
+        data: { provider: "razorpay", eventId: `${event}:${payment.id}`, type: event },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        return res.json({ received: true });
+      }
+      throw err;
+    }
+  }
 
   if (event === "payment.captured") {
-    const payment = payload.payload?.payment?.entity;
     const razorpayOrderId = payment?.order_id as string | undefined;
     if (razorpayOrderId) {
       const order = await prisma.order.findUnique({ where: { razorpayOrderId } });
-      if (order && order.status !== "paid") {
+      // Stock was already reserved when the order was created — this only
+      // flips status. Only acts on "created": if the order was already
+      // auto-failed by the stale-order job (a very late webhook), it is
+      // left as-is rather than risk re-decrementing already-restocked stock;
+      // that rare case needs a human to reconcile the payment manually.
+      if (order && order.status === "created") {
         await prisma.$transaction(async (tx) => {
           await tx.order.update({
             where: { id: order.id },
             data: { status: "paid", razorpayPaymentId: payment.id },
           });
-
-          const items = await tx.orderItem.findMany({ where: { orderId: order.id } });
-          for (const item of items) {
-            await tx.product.update({
-              where: { id: item.productId },
-              data: { stock: { decrement: item.qty } },
-            });
-          }
+          await tx.orderStatusHistory.create({
+            data: {
+              orderId: order.id,
+              fromStatus: "created",
+              toStatus: "paid",
+              changedByStaffId: null,
+              note: "Razorpay payment.captured webhook",
+            },
+          });
         });
       }
     }
   } else if (event === "payment.failed") {
-    const payment = payload.payload?.payment?.entity;
     const razorpayOrderId = payment?.order_id as string | undefined;
     if (razorpayOrderId) {
-      await prisma.order.updateMany({
-        where: { razorpayOrderId, status: "created" },
-        data: { status: "failed" },
-      });
+      const order = await prisma.order.findUnique({ where: { razorpayOrderId } });
+      if (order) {
+        await restockAndFailOrder(order.id, "Auto-failed: Razorpay payment.failed webhook");
+      }
     }
   }
 

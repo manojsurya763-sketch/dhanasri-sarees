@@ -9,15 +9,15 @@ export class ApiError extends Error {
   }
 }
 
-export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
+export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
   if (err instanceof ZodError) {
-    return res.status(400).json({ error: "Validation failed", details: err.flatten() });
+    return res.status(400).json({ error: "Validation failed", details: err.flatten(), requestId: req.id });
   }
   if (err instanceof ApiError) {
-    return res.status(err.status).json({ error: err.message });
+    return res.status(err.status).json({ error: err.message, requestId: req.id });
   }
-  console.error(err);
-  return res.status(500).json({ error: "Internal server error" });
+  req.log.error({ err }, "unhandled error");
+  return res.status(500).json({ error: "Internal server error", requestId: req.id });
 }
 
 export function notFoundHandler(_req: Request, res: Response) {

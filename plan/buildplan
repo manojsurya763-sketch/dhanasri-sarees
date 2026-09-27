@@ -1,0 +1,581 @@
+# Dhana Sri Sarees — E-Commerce Web App
+## Design Analysis → Modules → Architecture → Build Prompts
+
+Based on all 17 screens supplied (home hero, category/occasion grid, trend carousel, new arrivals/featured grid, product listing/cart, cart slide-in, empty cart, empty wishlist, wishlist with "Move to Cart", brand story band, testimonials, mid-page CTA banner, footer, About Us, Contact Us, OTP login modal).
+
+---
+
+## 1. Screen Inventory (what was found)
+
+| # | Screen | Key elements |
+|---|--------|--------------|
+| 1 | Home — Header + Hero | Announcement bar, logo, nav buttons, account/search/wishlist/cart icons, hero image + headline "Woven for Your Finest Moments", CTA "Shop the Collection", avatar+rating social proof, trust strip (shipping/returns) |
+| 2 | Dress By Occasion | 5-tile grid: Wedding, Festive, Haldi & Mehandi, Casual, Party — each with "Explore More" |
+| 3 | Shop by Trend | Carousel: large lifestyle banner + 3 thumbnail cards, arrows + dot pagination |
+| 4 | Featured Collection / New Arrivals | Horizontal product cards: badge (-20%), wishlist heart, quick-view + compare icons, title, SKU, MRP strike + price, arrows + View All |
+| 5 | Brand story band | Dark maroon band, big serif quote with inline image chips, sub-copy, "Discover Our Story" |
+| 6 | Testimonials | "Trusted by Women Like You" — postage-stamp styled review cards, avatar + name + collection tag |
+| 7 | Mid CTA banner | "Find Your Perfect Drape" — virtual appointment booking CTA |
+| 8 | Footer | Logo/tagline, Quick Links, Customer Service, Newsletter signup, social icons, copyright + region selector |
+| 9 | Product/Cart page | Product image, title, brand, rating, Qty stepper, delete icon, price/discount, delivery/return badges, coupon tiles, promo code field, order summary (MRP/discount/shipping/total), sticky "Proceed to Pay" |
+| 10 | Cart slide-in (multi-item) | Same product row repeated, same order summary — used as drawer or full page |
+| 11 | Empty Cart | Illustration, "Nothing Here, Yet!", "Discover Sarees" CTA |
+| 12 | Wishlist | Card per saved item, rating, price, "Move to Cart", delete icon |
+| 13 | Empty Wishlist | Broken-heart illustration, "So… We're Saving Nothing Today?", "Explore more" |
+| 14 | Login / Signup | Welcome card w/ offer code, phone input + country code, "Sign Up / Login" OTP flow, reCAPTCHA + terms note |
+| 15 | About Us | Banner, founder photo, brand narrative, secondary CTA banner, footer |
+| 16 | Contact Us | Banner, "Get In Touch" intro, embedded map w/ store card + "Get Direction", Call/Email/Hours info tiles, CTA banner, footer |
+
+---
+
+## 2. Functional Modules
+
+```mermaid
+flowchart TB
+    subgraph Global["Global Shell"]
+        NAV[Header / Nav / Announcement Bar]
+        FOOT[Footer]
+        AUTH[Auth: OTP Login/Signup]
+    end
+
+    subgraph Catalog["Catalog Module"]
+        HOME[Home / Landing]
+        OCC[Occasion & Trend Browsing]
+        PLIST[Product Listing / Category]
+        PDP[Product Detail Page]
+    end
+
+    subgraph Engagement["Engagement Module"]
+        WISH[Wishlist]
+        REV[Reviews & Ratings]
+        NEWS[Newsletter]
+    end
+
+    subgraph Commerce["Commerce Module"]
+        CART[Cart - drawer + page]
+        PROMO[Coupon / Promo Engine]
+        CHECKOUT[Checkout]
+        PAY[Payment Gateway]
+        ORDER[Order Confirmation / History]
+    end
+
+    subgraph Content["Static Content Module"]
+        ABOUT[About Us]
+        CONTACT[Contact Us + Map]
+    end
+
+    NAV --> HOME
+    HOME --> OCC --> PLIST --> PDP
+    PDP -->|Add to Cart| CART
+    PDP -->|Add to Wishlist| WISH
+    WISH -->|Move to Cart| CART
+    CART --> PROMO --> CHECKOUT
+    CHECKOUT --> AUTH
+    CHECKOUT --> PAY --> ORDER
+    NAV --> ABOUT
+    NAV --> CONTACT
+    NAV --> WISH
+    NAV --> CART
+    NAV --> AUTH
+    FOOT --> NEWS
+    PDP --> REV
+```
+
+### Module list
+1. **Global Shell** – Header (announcement bar, logo, nav, search, account, wishlist, cart icon w/ badge), Footer, Auth modal.
+2. **Catalog** – Home page sections (Hero, Occasion grid, Trend carousel, Featured/New Arrivals grid, Brand story, Testimonials, Mid CTA), Product Listing (filters/sort — implied by "View All"), Product Detail Page (PDP not shown explicitly but implied by quick-view eye icon).
+3. **Engagement** – Wishlist (populated + empty states), Reviews (star ratings on cards), Newsletter capture.
+4. **Commerce** – Cart (drawer + full page, empty state), Coupon/Promo (tile suggestions + code field), Checkout, Payment, Order Summary/Confirmation.
+5. **Auth** – OTP-based phone login/signup with welcome offer banner.
+6. **Static Content** – About Us, Contact Us (with map + store info).
+
+### ⚠️ Dynamic-content rule (updated)
+Three parts of the Catalog module must be **fully dynamic**, driven by the database through the API — never hardcoded arrays in the frontend:
+
+| Screen | Data source | Refresh behavior |
+|---|---|---|
+| **New Arrivals** (home) | `GET /products?section=new-arrivals&limit=8` — server sorts by `created_at DESC` (or an `is_new_arrival` flag with a rolling 30/60-day window) | Automatically updates as new products are added to the catalog; no manual curation needed |
+| **Product Listing / Category page** | `GET /products?category=&occasion=&sort=&page=&minPrice=&maxPrice=` | Re-fetches on every filter/sort/pagination change; server-side filtering + pagination, not client-side array slicing |
+| **Product Detail Page (PDP)** | `GET /products/:slug` (+ `GET /products/:id/related`, `GET /products/:id/reviews`) | Fetched per request (SSR) or via ISR with revalidation; price, stock, discount %, rating, and reviews must reflect live DB state |
+
+"Featured Collection" can remain admin-curated (`is_featured` flag) if the business wants manual control there — but **New Arrivals, Listing, and PDP must never use static/mock JSON in production.**
+
+---
+
+## 3. Recommended Tech Stack
+
+| Layer | Choice | Why |
+|---|---|---|
+| Frontend | React (Next.js) + Tailwind CSS | SSR/SEO for product pages, fast to match the maroon/cream design tokens |
+| State | Zustand or Redux Toolkit | Cart/Wishlist state shared across drawer + pages |
+| Backend | Node.js + Express (or Next.js API routes) | Single JS stack |
+| Database | PostgreSQL (relational: orders, inventory) | Transactional integrity for cart/orders |
+| Auth | Firebase Phone Auth or MSG91/Twilio OTP | Matches phone+OTP login screen |
+| Payments | Razorpay | ₹ (INR) pricing shown throughout |
+| Media | Cloudinary / S3 | Product images, banners |
+| Search | Algolia or Postgres full-text (v2) | Category/product search icon in header |
+| Maps | Google Maps Embed API | Contact Us map |
+| Hosting | Vercel (frontend) + Render/Railway (API) | Simple CI/CD |
+
+---
+
+## 4. Project Structure
+
+```
+dhana-sri-sarees/
+├── apps/
+│   ├── web/                          # Next.js frontend
+│   │   ├── app/
+│   │   │   ├── (shop)/
+│   │   │   │   ├── page.tsx                  # Home
+│   │   │   │   ├── products/[slug]/page.tsx  # PDP
+│   │   │   │   ├── category/[slug]/page.tsx  # Listing
+│   │   │   │   ├── cart/page.tsx
+│   │   │   │   ├── wishlist/page.tsx
+│   │   │   │   ├── checkout/page.tsx
+│   │   │   │   ├── about/page.tsx
+│   │   │   │   └── contact/page.tsx
+│   │   │   ├── (auth)/login/page.tsx
+│   │   │   └── layout.tsx
+│   │   ├── components/
+│   │   │   ├── layout/ (Header, AnnouncementBar, Footer, MobileNav)
+│   │   │   ├── home/ (Hero, OccasionGrid, TrendCarousel, ProductGrid, BrandStory, Testimonials, CTABanner)
+│   │   │   ├── product/ (ProductCard, QtyStepper, RatingStars, WishlistButton)
+│   │   │   ├── cart/ (CartDrawer, CartLineItem, OrderSummary, PromoCodeBox, EmptyCart)
+│   │   │   ├── wishlist/ (WishlistCard, EmptyWishlist)
+│   │   │   ├── auth/ (OTPModal, PhoneInput)
+│   │   │   └── ui/ (Button, Badge, Input, Modal — design-token driven)
+│   │   ├── store/ (cartStore.ts, wishlistStore.ts, authStore.ts)
+│   │   ├── lib/ (api.ts, formatCurrency.ts, validators.ts)
+│   │   └── styles/tokens.css
+│   └── api/                          # Express/Nest backend
+│       ├── src/
+│       │   ├── modules/
+│       │   │   ├── auth/ (otp.controller, auth.service)
+│       │   │   ├── products/ (products.controller/service/repo)
+│       │   │   ├── cart/
+│       │   │   ├── wishlist/
+│       │   │   ├── orders/
+│       │   │   ├── coupons/
+│       │   │   └── reviews/
+│       │   ├── middleware/ (auth.guard, error-handler)
+│       │   └── config/ (db.ts, razorpay.ts, sms.ts)
+├── packages/
+│   ├── ui/                # shared design system (optional monorepo)
+│   └── types/             # shared TS interfaces
+└── infra/ (docker-compose.yml, migrations/)
+```
+
+---
+
+## 5. Data Model (core tables)
+
+```mermaid
+erDiagram
+    USERS ||--o{ ORDERS : places
+    USERS ||--o{ WISHLIST_ITEMS : saves
+    USERS ||--|| CARTS : owns
+    CARTS ||--o{ CART_ITEMS : contains
+    ORDERS ||--o{ ORDER_ITEMS : contains
+    PRODUCTS ||--o{ CART_ITEMS : referenced_by
+    PRODUCTS ||--o{ WISHLIST_ITEMS : referenced_by
+    PRODUCTS ||--o{ ORDER_ITEMS : referenced_by
+    PRODUCTS ||--o{ REVIEWS : has
+    PRODUCTS }o--|| CATEGORIES : belongs_to
+    COUPONS ||--o{ ORDERS : applied_to
+
+    USERS {
+        uuid id PK
+        string phone
+        string name
+        string email
+        timestamp created_at
+    }
+    PRODUCTS {
+        uuid id PK
+        string title
+        string sku
+        string slug
+        string category_id FK
+        string occasion_tag
+        decimal mrp
+        decimal price
+        int discount_pct
+        text description
+        string[] images
+        float rating
+        int review_count
+        int stock
+        boolean is_featured
+        boolean is_new_arrival
+        timestamp created_at
+        timestamp updated_at
+    }
+    CATEGORIES {
+        uuid id PK
+        string name
+        string occasion_tag
+    }
+    CARTS { uuid id PK, uuid user_id FK }
+    CART_ITEMS { uuid id PK, uuid cart_id FK, uuid product_id FK, int qty }
+    WISHLIST_ITEMS { uuid id PK, uuid user_id FK, uuid product_id FK }
+    ORDERS {
+        uuid id PK
+        uuid user_id FK
+        decimal total_mrp
+        decimal discount
+        decimal shipping
+        decimal total_amount
+        string status
+        string coupon_code
+        timestamp created_at
+    }
+    ORDER_ITEMS { uuid id PK, uuid order_id FK, uuid product_id FK, int qty, decimal price_at_purchase }
+    COUPONS { uuid id PK, string code, int pct_off, decimal max_off, decimal min_purchase }
+    REVIEWS { uuid id PK, uuid product_id FK, uuid user_id FK, int rating, text comment }
+```
+
+---
+
+## 6. End-to-End Workflow
+
+```mermaid
+sequenceDiagram
+    participant U as Shopper
+    participant FE as Frontend (Next.js)
+    participant API as Backend API
+    participant PAY as Razorpay
+    participant SMS as OTP Provider
+
+    U->>FE: Land on Home
+    FE->>API: GET /products?section=new-arrivals&limit=8 (sorted by created_at)
+    API-->>FE: live product list (DB-backed, no mock data)
+    U->>FE: Click a category / "View All" / occasion tile
+    FE->>API: GET /products?category=&occasion=&sort=&page=
+    API-->>FE: filtered + paginated product list (server-side)
+    U->>FE: Click a product card
+    FE->>API: GET /products/:slug
+    API-->>FE: live product detail (price, stock, discount, images)
+    FE->>API: GET /products/:id/related, GET /products/:id/reviews
+    API-->>FE: related products + reviews
+    U->>FE: Click "Add to Wishlist" (heart icon)
+    alt not logged in
+        FE->>U: Show OTP Login modal
+        U->>FE: Enter phone number
+        FE->>API: POST /auth/otp/request
+        API->>SMS: send OTP
+        U->>FE: Enter OTP
+        FE->>API: POST /auth/otp/verify
+        API-->>FE: JWT/session
+    end
+    FE->>API: POST /wishlist {product_id}
+    U->>FE: Click "Add to Cart" / "Move to Cart"
+    FE->>API: POST /cart/items {product_id, qty}
+    API-->>FE: updated cart (drawer opens)
+    U->>FE: Open Cart page, apply promo (DHANASRI10)
+    FE->>API: POST /cart/apply-coupon
+    API-->>FE: recalculated order summary
+    U->>FE: Click "Proceed to Pay"
+    FE->>API: POST /orders (create pending order)
+    API->>PAY: create payment session
+    PAY-->>U: payment UI
+    U->>PAY: completes payment
+    PAY->>API: webhook: payment success
+    API-->>FE: order confirmed
+    FE-->>U: Order confirmation page
+```
+
+### Empty-state logic
+- **Cart empty** → show `EmptyCart` illustration + "Discover Sarees" CTA → routes to `/category/all`.
+- **Wishlist empty** → show `EmptyWishlist` (broken heart) + "Explore more" CTA → routes to Home or Listing.
+
+---
+
+## 7. API Endpoint Map
+
+| Module | Method & Path | Purpose |
+|---|---|---|
+| Auth | `POST /auth/otp/request` | send OTP to phone |
+| Auth | `POST /auth/otp/verify` | verify OTP, issue session |
+| Products | `GET /products?section=new-arrivals` | **dynamic**, sorted by `created_at DESC` or `is_new_arrival` flag |
+| Products | `GET /products?section=featured` | curated via `is_featured` flag (admin-controlled) |
+| Products | `GET /products?category=&occasion=&sort=&page=&limit=&minPrice=&maxPrice=` | **dynamic** Product Listing page — server-side filter/sort/paginate |
+| Products | `GET /products/:slug` | **dynamic** PDP detail (live price/stock/discount/images) |
+| Products | `GET /products/:id/related` | related products for PDP (same category, excluding self) |
+| Products | `GET /products/:id/reviews` | reviews for PDP |
+| Cart | `GET /cart` | fetch current cart |
+| Cart | `POST /cart/items` | add item |
+| Cart | `PATCH /cart/items/:id` | update qty |
+| Cart | `DELETE /cart/items/:id` | remove item |
+| Cart | `POST /cart/apply-coupon` | validate + apply promo code |
+| Wishlist | `GET /wishlist` | fetch saved items |
+| Wishlist | `POST /wishlist` | add item |
+| Wishlist | `DELETE /wishlist/:id` | remove / or move-to-cart (combined transaction) |
+| Orders | `POST /orders` | create order from cart |
+| Orders | `GET /orders/:id` | order confirmation/status |
+| Reviews | `GET /products/:id/reviews` | list reviews |
+| Newsletter | `POST /newsletter/subscribe` | footer email capture |
+| Contact | `POST /contact` | contact form submit (if added) |
+
+---
+
+## 8. Expected Output / Deliverables
+
+1. Responsive storefront (mobile-first, matches maroon `#8B1E2E`-ish + cream `#FBEEDD`-ish palette, serif display font for headings + sans body).
+2. Fully working Cart & Wishlist with persistent state (DB-backed once logged in, localStorage before login).
+3. OTP-based auth gating checkout only (browsing/wishlist can be guest-friendly, checkout requires login — confirm this rule with stakeholder).
+4. Admin-manageable product catalog (even a simple CMS/JSON-driven seed for v1).
+5. Working Razorpay checkout with order summary math (MRP − discount + shipping = total) matching the screens exactly.
+6. About/Contact static pages with live Google Map embed.
+7. SEO-friendly URLs (`/category/wedding`, `/products/pista-green-threadwork-chiffon-saree`).
+
+---
+
+## 9. Ready-to-Use Build Prompts
+
+Use these sequentially with your AI coding assistant (e.g., Claude Code). Each is scoped to one module so context stays clean.
+
+### Prompt 0 — Project scaffold
+```
+Scaffold a Next.js 14 (App Router) + TypeScript + Tailwind CSS project named
+"dhana-sri-sarees". Set up:
+- Design tokens in tailwind.config.ts: primary maroon #7A1F2B, secondary cream
+  background #FBEEDD, accent gold #C9A15A, serif display font (e.g. "Playfair
+  Display") for headings, clean sans (e.g. "Inter") for body.
+- Folder structure: app/(shop), app/(auth), components/layout, components/home,
+  components/product, components/cart, components/wishlist, components/auth,
+  components/ui, store/, lib/.
+- Zustand stores for cart and wishlist with localStorage persistence.
+- A shared Button, Badge, Input, and Modal component using the tokens above.
+```
+
+### Prompt 1 — Global shell (Header/Footer)
+```
+Build the global layout: 
+1) AnnouncementBar (rotating text: "Welcome to Dhana Sri Sarees" / "Free
+   Shipping Across India on Order Above ₹5000" / "Free International Shipping
+   on Orders Above ₹50000").
+2) Header: logo + "Dhana Sri Sarees / Since 2004", center nav links, right-side
+   icon group (account, search, wishlist with count badge, cart with count
+   badge). Sticky on scroll, collapses to hamburger on mobile.
+3) Footer: 4 columns — brand blurb, Quick Links, Customer Service, Newsletter
+   email capture + social icons (Instagram, Facebook, X, WhatsApp) — maroon
+   background, floral top border, bottom bar with copyright + country selector.
+Use the shared design tokens. Make Header and Footer reusable across all pages.
+```
+
+### Prompt 2 — Home page: Hero + trust strip
+```
+Build the Home hero section: full-bleed background image of a saree draped
+woman in a palace setting, left-aligned overlay text "Woven for Your Finest
+Moments" (serif italic display), supporting copy, "Shop the Collection"
+button, stacked avatar group + "4.9 ★ 320 Reviews" social proof. Below the
+hero, add a thin maroon trust strip with feather icons: "Free shipping
+thresholds / International shipping / Return policy" scrolling/marquee style.
+```
+
+### Prompt 3 — Dress By Occasion grid
+```
+Build a "Dress By Occasion" section: heading + subcopy, then a 5-card
+responsive grid (1 large left card spanning 2 rows: "The Wedding Edit", plus
+4 smaller cards: "Festive Ready", "Haldi and Mehandi", "Casual Ethinic",
+"Party Night"). Each card is a full-bleed image with a dark gradient overlay,
+title in serif italic, and an "Explore More →" link. Cards route to
+/category/[occasion-slug].
+```
+
+### Prompt 4 — Shop by Trend carousel
+```
+Build a "Shop by Trend" horizontal carousel: one large feature slide (dark
+overlay, "Draped for Forever" title, subcopy, "Shop Now →" button) followed by
+repeating square thumbnail cards. Include prev/next arrow buttons and dot
+pagination. Make it swipeable on mobile and auto-advance every 6s with pause
+on hover.
+```
+
+### Prompt 5 — Product card + DYNAMIC product grid (New Arrivals / Featured)
+```
+Build a reusable <ProductCard/>: product image, "-20%" discount badge
+top-left, wishlist heart icon top-right (toggles filled/outline and calls
+wishlistStore), hover reveals quick-view (eye) and compare icons, title,
+"SKU: xxxx", strikethrough MRP + current price. Then build <ProductGrid/> that
+takes a section title + subcopy + "View All →" link, renders 4 cards per row
+with horizontal scroll/arrow nav on mobile.
+
+IMPORTANT — make the data dynamic, not hardcoded:
+- "New Arrivals" must call `GET /products?section=new-arrivals&limit=8` on the
+  server (use an async Server Component or getServerSideProps/ISR with a short
+  revalidate, e.g. 60s) and render whatever the API returns — do NOT hardcode
+  a product array. The section should automatically reflect newly added
+  products without a frontend code change.
+- "Featured Collection" calls `GET /products?section=featured&limit=8`
+  (admin-curated via `is_featured` flag, still fetched live from the API).
+- Show a loading skeleton state and an empty state ("No products yet") if the
+  API returns zero results.
+```
+
+### Prompt 5a — DYNAMIC Product Listing / Category page
+```
+Build /category/[slug] as a dynamic listing page:
+- On load, call GET /products?category=[slug]&sort=&page=1&limit=12 (also
+  support an "occasion" query param for the Dress-By-Occasion tiles routing
+  here, e.g. /category/wedding).
+- Add a filter/sort bar: sort by (Newest, Price Low-High, Price High-Low,
+  Popularity/Rating), and optional filters (price range, fabric, color if
+  available in the schema).
+- Re-fetch from the API every time a filter, sort, or page changes — do not
+  filter a static in-memory array. Use URL query params so filters are
+  shareable/bookmarkable and support back/forward navigation.
+- Render results using the existing <ProductCard/> in a responsive grid with
+  pagination or infinite scroll, a result count ("X sarees found"), and an
+  empty state when a filter combination returns zero products.
+```
+
+### Prompt 5b — DYNAMIC Product Detail Page (PDP)
+```
+Build /products/[slug] as a dynamic PDP:
+- Fetch the product server-side via GET /products/:slug (404/redirect if not
+  found or out of stock and unlisted). Use SSR or ISR with revalidation so
+  price, discount %, stock, and images always reflect the live database —
+  never inline static product data in the component.
+- Layout: image gallery (thumbnails + zoom), title, brand, star rating +
+  review count (from GET /products/:id/reviews), MRP strike + price + "-X%
+  OFF" badge computed from live `mrp`/`price`/`discount_pct`, size/variant
+  selector if applicable, Qty stepper, "Add to Cart" and "Add to Wishlist"
+  buttons, delivery estimate + return policy line, and an accordion for
+  description/specifications.
+- Below the fold, fetch and render "You may also like" via
+  GET /products/:id/related, and a reviews list from
+  GET /products/:id/reviews with pagination.
+- "Add to Cart" and "Add to Wishlist" must check current stock/session state
+  before dispatching to cartStore/wishlistStore and calling the API.
+```
+
+### Prompt 6 — Brand story band + testimonials + mid CTA
+```
+Build three sections:
+1) BrandStoryBand: dark maroon full-width band with large serif quote text
+   that has small rounded image chips inline (saree fabric close-ups),
+   sub-copy, white "Discover Our Story →" button.
+2) Testimonials: "Trusted by Women Like You" heading, grid of postage-stamp
+   styled review cards (torn/scalloped edge via CSS clip-path or SVG mask),
+   italic quote, avatar + name + collection tag.
+3) CTABanner ("Find Your Perfect Drape"): background photo of red saree
+   fabric, left-aligned heading + subcopy + maroon "Book A Virtual
+   Appointment" button. Make this reusable — it repeats on About and Contact
+   pages.
+```
+
+### Prompt 7 — Cart module (drawer + full page + empty state)
+```
+Build the Cart module:
+1) CartDrawer: slide-in panel triggered by header cart icon, lists CartLineItem
+   rows (image, title, brand, rating, Qty stepper with +/-, delete icon, MRP
+   strike + price + "-20% OFF" badge, delivery/return checklist).
+2) Cart full page: same line items stacked, coupon suggestion tiles ("SAVE 10%
+   with DHANASRI10"), a PromoCodeBox (input + Apply button + helper text
+   "Try: DHANASRI10, DHANASRI15, DHANASRI20"), and an OrderSummary card
+   (Total MRP, Discount on MRP, Shipping, divider, Total Amount) with a sticky
+   bottom bar showing total + "Proceed To Pay" button.
+3) EmptyCart state: centered illustration, "Nothing Here, Yet!" heading,
+   "Maybe it's time to add a little something beautiful." subtext, "Discover
+   Sarees →" button linking to /category/all.
+Wire quantity changes and coupon application to recompute totals live from
+cartStore.
+```
+
+### Prompt 8 — Wishlist module
+```
+Build the Wishlist module:
+1) Wishlist page: list of WishlistCard (image, title, brand, rating, delete
+   icon, MRP/price/discount badge, "Move to Cart →" button that removes from
+   wishlist and adds to cartStore in one action).
+2) EmptyWishlist state: broken-heart illustration, "So… We're Saving Nothing
+   Today?" heading, "Go on, save something you love." subtext, "Explore
+   more →" button.
+```
+
+### Prompt 9 — Auth (OTP login/signup modal)
+```
+Build an OTPAuthModal:
+Step 1: decorative lotus-bordered welcome card ("Welcome To Dhana Sri Sarees",
+logo, offer text "Get Flat 10% OFF on Your First Order Above ₹5,000 — Use
+Code: DHANASRI10"), country-code dropdown (+91 default) + phone input,
+"Sign Up / Login" button, reCAPTCHA + terms disclaimer text.
+Step 2: on submit, call POST /auth/otp/request, then show a 6-digit OTP input
+with resend timer; on verify call POST /auth/otp/verify and store the session
+in authStore, then close modal and continue the action that triggered login
+(e.g. add-to-wishlist or checkout).
+```
+
+### Prompt 10 — Static pages: About Us & Contact Us
+```
+Build /about: hero banner ("About Us" over silk fabric texture), two-column
+section (stamp-framed founder/portrait photo + brand story paragraphs),
+followed by the shared CTABanner and Footer.
+
+Build /contact: hero banner ("Contact Us"), "Get In Touch" heading + intro
+copy, an embedded Google Map (or static map component for now) with a
+floating store-info card ("Dhana Sri Sarees", address, "Get Direction"
+button), a 3-column info strip (Call Us / Email Id / Office Hours, each with a
+phone-icon tile), followed by the shared CTABanner and Footer.
+```
+
+### Prompt 11 — Backend: Products, Cart, Wishlist, Coupons APIs
+```
+Build an Express + TypeScript API with PostgreSQL (Prisma ORM) implementing
+the schema: users, products (with `is_featured`, `is_new_arrival`,
+`created_at`), categories, carts, cart_items, wishlist_items, orders,
+order_items, coupons, reviews (see ER diagram). Implement:
+- `GET /products` — supports `section` (new-arrivals sorted by created_at
+  DESC, or featured via is_featured), `category`, `occasion`, `sort`
+  (newest/price_asc/price_desc/rating), `page`, `limit`, `minPrice`,
+  `maxPrice` — all server-side, paginated, indexed on category_id/created_at.
+- `GET /products/:slug` — full product detail, 404 if not found/inactive.
+- `GET /products/:id/related`, `GET /products/:id/reviews`.
+- GET/POST/PATCH/DELETE /cart/items, POST /cart/apply-coupon (validate min
+  purchase + pct off, e.g. DHANASRI10/15/20), GET/POST/DELETE /wishlist,
+  POST /orders, GET /orders/:id.
+Include request validation (zod), pagination metadata in responses
+(`total`, `page`, `pageSize`), and error middleware.
+```
+
+### Prompt 12 — Backend: OTP Auth
+```
+Implement phone-based OTP auth using [Twilio Verify | MSG91 | Firebase Auth]:
+POST /auth/otp/request (rate-limited, 60s cooldown) and POST /auth/otp/verify
+(issues JWT, creates user row if new phone). Add an auth middleware that
+protects /cart (server-side persistence), /wishlist, and /orders routes once
+a session exists, while allowing guest cart via a cartId cookie before login.
+```
+
+### Prompt 13 — Payments
+```
+Integrate Razorpay: POST /orders creates an order in "pending" status and a
+Razorpay order via their SDK; return the Razorpay order id + key to the
+frontend to open Razorpay Checkout. Add a webhook endpoint
+POST /webhooks/razorpay that verifies signature, marks the order "paid",
+decrements product stock, and clears the user's cart.
+```
+
+### Prompt 14 — Polish & QA pass
+```
+Do a full visual QA pass against the reference screenshots: verify spacing,
+maroon (#7A1F2B) / cream (#FBEEDD) usage, serif display headings vs sans body,
+badge styles (-20% purple pill), button styles (maroon fill, white text,
+arrow icon), and responsive behavior at 375px, 768px, 1280px. Fix any
+mismatches in components/ui tokens rather than one-off overrides.
+```
+
+---
+
+## 10. Suggested Build Order
+
+1. Prompt 0 (scaffold) → 1 (shell) → 2–4 (home hero/occasion/trend) — get a demo-able landing page fast, using mock JSON only for these purely visual sections.
+2. **Prompt 11 (backend) before 5/5a/5b** — since New Arrivals, Listing, and PDP are dynamic-only, stand up the Products API and seed the DB first, so the frontend never touches static product data.
+3. Prompt 5 (dynamic New Arrivals/Featured grids) → 5a (dynamic Listing) → 5b (dynamic PDP), all wired to the live API from the start.
+4. Prompt 9 (auth) in parallel, since Cart/Wishlist depend on session state.
+5. Prompt 7 (cart) → 8 (wishlist) — wire to Zustand + localStorage first, swap to API-backed persistence once auth exists.
+6. Prompt 6 (brand story/testimonials/CTA) and Prompt 10 (About/Contact) — low-risk, can slot in anytime.
+7. Prompt 12–13 (OTP auth backend + payments).
+8. Prompt 14 (QA) — final pass before launch.

@@ -9,7 +9,7 @@ export function OTPAuthModal() {
   const close = useUiStore((s) => s.closeAuthModal);
 
   return (
-    <Modal open={open} onClose={close}>
+    <Modal open={open} onClose={close} className="max-w-lg">
       <OTPAuthForm onSuccess={close} />
     </Modal>
   );

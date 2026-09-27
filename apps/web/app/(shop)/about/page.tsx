@@ -1,5 +1,8 @@
+import Image from "next/image";
 import { PageHero } from "@/components/layout/PageHero";
 import { CTABanner } from "@/components/home/CTABanner";
+
+export const dynamic = "force-dynamic";
 
 export default function AboutPage() {
   return (
@@ -7,10 +10,14 @@ export default function AboutPage() {
       <PageHero title="About Us" />
 
       <section className="mx-auto grid max-w-5xl grid-cols-1 gap-10 px-4 py-16 sm:px-6 md:grid-cols-2 md:items-center">
-        <div className="postage-stamp mx-auto flex aspect-[4/5] w-full max-w-sm items-center justify-center bg-gradient-to-br from-maroon-400 to-maroon-900 p-4">
-          <span className="font-[family-name:var(--font-serif-display)] text-cream-50/80">
-            Founder Portrait
-          </span>
+        <div className="postage-stamp relative mx-auto aspect-[4/5] w-full max-w-sm overflow-hidden">
+          <Image
+            src="/images/founder.png"
+            alt="Founder of Dhana Sri Sarees"
+            fill
+            sizes="(min-width: 768px) 384px, 100vw"
+            className="object-cover object-top"
+          />
         </div>
 
         <div>

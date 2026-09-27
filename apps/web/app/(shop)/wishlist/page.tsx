@@ -4,6 +4,8 @@ import { useWishlistStore } from "@/store/wishlistStore";
 import { WishlistCard } from "@/components/wishlist/WishlistCard";
 import { EmptyWishlist } from "@/components/wishlist/EmptyWishlist";
 
+export const dynamic = "force-dynamic";
+
 export default function WishlistPage() {
   const items = useWishlistStore((s) => s.items);
 

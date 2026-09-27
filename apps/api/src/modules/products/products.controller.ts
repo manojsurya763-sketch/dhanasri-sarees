@@ -3,12 +3,14 @@ import { prisma } from "@/config/db";
 import { param } from "@/lib/params";
 import { ApiError } from "@/middleware/error-handler";
 import {
+  facetsQuerySchema,
   listProductsQuerySchema,
   relatedQuerySchema,
   reviewsQuerySchema,
 } from "@/modules/products/products.schema";
 import {
   findProductBySlug,
+  findProductFacets,
   findProductReviews,
   findProducts,
   findRelatedProducts,
@@ -22,6 +24,12 @@ export async function listProducts(req: Request, res: Response) {
     items,
     pagination: { total, page: query.page, pageSize: query.limit },
   });
+}
+
+export async function getProductFacets(req: Request, res: Response) {
+  const query = facetsQuerySchema.parse(req.query);
+  const facets = await findProductFacets(query);
+  res.json(facets);
 }
 
 export async function getProductBySlug(req: Request, res: Response) {

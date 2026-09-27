@@ -1,12 +1,12 @@
+import Image from "next/image";
 import Link from "next/link";
-import { HeartCrack } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
 export function EmptyWishlist() {
   return (
     <div className="flex flex-col items-center justify-center px-4 py-24 text-center">
-      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-maroon-500/10 text-maroon-500">
-        <HeartCrack className="h-9 w-9" />
+      <div className="relative h-28 w-28">
+        <Image src="/images/empty-wishlist.png" alt="" fill sizes="112px" className="object-contain" />
       </div>
       <h2 className="mt-6 font-[family-name:var(--font-serif-display)] text-2xl italic text-maroon-500">
         So&hellip; We&apos;re Saving Nothing Today?

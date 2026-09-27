@@ -1,3 +1,4 @@
+import { Package } from "lucide-react";
 import { formatCurrency } from "@/lib/formatCurrency";
 
 const FREE_SHIPPING_THRESHOLD = 5000;
@@ -19,9 +20,10 @@ export function OrderSummary({
 
   return (
     <div className="rounded-2xl border border-maroon-500/10 bg-cream-50 p-5">
-      <h3 className="text-sm font-semibold uppercase tracking-wide text-maroon-900/60">
-        Order Summary
-      </h3>
+      <div className="flex items-center gap-2">
+        <Package className="h-4 w-4 text-maroon-500" />
+        <h3 className="font-[family-name:var(--font-serif-display)] text-lg italic text-maroon-500">Order Summary</h3>
+      </div>
 
       <dl className="mt-4 space-y-2 text-sm text-maroon-900/80">
         <div className="flex justify-between">

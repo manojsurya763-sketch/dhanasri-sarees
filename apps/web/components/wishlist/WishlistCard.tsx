@@ -1,9 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import { Trash2 } from "lucide-react";
 import { RatingStars } from "@/components/product/RatingStars";
 import { Button } from "@/components/ui/Button";
 import { formatCurrency, discountPct } from "@/lib/formatCurrency";
+import { placeholderImage } from "@/lib/image";
 import { useCartStore } from "@/store/cartStore";
 import { useWishlistStore, type WishlistItem } from "@/store/wishlistStore";
 
@@ -25,8 +27,8 @@ export function WishlistCard({ item }: { item: WishlistItem }) {
 
   return (
     <div className="flex gap-4 rounded-2xl border border-maroon-500/10 bg-cream-50 p-4">
-      <div className="flex h-24 w-20 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-maroon-400 to-maroon-800 text-xs text-cream-50/70">
-        {item.title.slice(0, 1)}
+      <div className="relative h-24 w-20 shrink-0 overflow-hidden rounded-lg bg-maroon-50">
+        <Image src={item.image || placeholderImage(item.title)} alt={item.title} fill sizes="80px" className="object-cover" />
       </div>
 
       <div className="flex flex-1 flex-col">

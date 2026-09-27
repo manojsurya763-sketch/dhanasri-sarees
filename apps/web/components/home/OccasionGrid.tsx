@@ -1,12 +1,13 @@
 import Link from "next/link";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 const OCCASIONS = [
-  { title: "The Wedding Edit", slug: "wedding", large: true, from: "from-maroon-600", to: "to-maroon-900" },
-  { title: "Festive Ready", slug: "festive", from: "from-gold-600", to: "to-maroon-600" },
-  { title: "Haldi and Mehandi", slug: "haldi-mehandi", from: "from-yellow-600", to: "to-maroon-500" },
-  { title: "Casual Ethnic", slug: "casual", from: "from-maroon-400", to: "to-maroon-900" },
-  { title: "Party Night", slug: "party", from: "from-maroon-900", to: "to-purple-900" },
+  { title: "The Wedding Edit", slug: "wedding", large: true, image: "/images/occasions/wedding.png" },
+  { title: "Festive Ready", slug: "festive", image: "/images/occasions/festive.png" },
+  { title: "Haldi and Mehandi", slug: "haldi-mehandi", image: "/images/occasions/haldi-mehandi.png" },
+  { title: "Casual Ethnic", slug: "casual", image: "/images/occasions/casual.png" },
+  { title: "Party Night", slug: "party", image: "/images/occasions/party.png" },
 ];
 
 export function OccasionGrid() {
@@ -27,13 +28,18 @@ export function OccasionGrid() {
             key={occ.slug}
             href={`/category/${occ.slug}`}
             className={cn(
-              "group relative flex min-h-[200px] items-end overflow-hidden rounded-2xl bg-gradient-to-br p-5",
-              occ.from,
-              occ.to,
+              "group relative flex min-h-[200px] items-end overflow-hidden rounded-2xl bg-maroon-900 p-5",
               occ.large && "col-span-2 row-span-2 min-h-[320px] sm:min-h-full"
             )}
           >
-            <div className="absolute inset-0 bg-black/10 transition-opacity group-hover:bg-black/25" />
+            <Image
+              src={occ.image}
+              alt={occ.title}
+              fill
+              sizes={occ.large ? "(min-width: 640px) 50vw, 100vw" : "(min-width: 640px) 25vw, 50vw"}
+              className="object-cover object-top transition-transform duration-300 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent transition-opacity group-hover:from-black/80" />
             <div className="relative">
               <h3 className="font-[family-name:var(--font-serif-display)] text-xl italic text-cream-50 sm:text-2xl">
                 {occ.title}
